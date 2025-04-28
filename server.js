@@ -9,7 +9,6 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files from 'public' folder
 const publicPath = path.join(__dirname, 'public');
 console.log('Serving static files from:', publicPath);
 fs.readdir(publicPath, (err, files) => {
@@ -21,13 +20,11 @@ fs.readdir(publicPath, (err, files) => {
 });
 app.use(express.static(publicPath));
 
-// Debug route
 app.get('/', (req, res) => {
     console.log('Root route accessed');
     res.send('Server is running!');
 });
 
-// Debug file requests
 app.get('/public/:file', (req, res, next) => {
     console.log('Request for file:', req.params.file);
     next();

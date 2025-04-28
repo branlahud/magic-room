@@ -9,11 +9,8 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files from 'public' folder
 const publicPath = path.join(__dirname, 'public');
 console.log('Serving static files from:', publicPath);
-
-// Check if public directory exists
 if (!fs.existsSync(publicPath)) {
     console.log('Public directory does not exist:', publicPath);
 } else {
@@ -25,20 +22,16 @@ if (!fs.existsSync(publicPath)) {
         }
     });
 }
-
-// Serve static files
 app.use('/public', express.static(publicPath, {
     extensions: ['html'],
     index: false
 }));
 
-// Debug route
 app.get('/', (req, res) => {
     console.log('Root route accessed');
     res.send('Server is running!');
 });
 
-// Debug file requests
 app.get('/public/:file', (req, res, next) => {
     console.log('Request for file:', req.params.file);
     const filePath = path.join(publicPath, req.params.file);
@@ -60,21 +53,41 @@ const codes = {
 };
 
 wss.on('connection', (ws) => {
-    console.log('Client connected');
+    console.log('New WebSocket client connected. Total clients:', wss.clients.size);
     ws.on('message', (message) => {
-        console.log('Received message:', message);
-        const data = JSON.parse(message);
-        const video = codes[data.code];
-        if (video) {
-            wss.clients.forEach((client) => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ event: 'playVideo', video: video }));
-                }
-            });
-        } else {
-            ws.send(JSON.stringify({ event: 'wrongCode' }));
+        try {
+            console.log('Raw message received:', message.toString());
+            const data = JSON.parse(message);
+            console.log('Parsed message:', data);
+            const video = codes[data.code];
+            if (video) {
+                console.log('Valid code received:', data.code, 'Triggering video:', video);
+                const response = JSON.stringify({ event: 'playVideo', video: video });
+                console.log('Broadcasting to clients:', response);
+                wss.clients.forEach((client) => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(response);
+                        console.log('Sent to client:', client._socket.remoteAddress);
+                    }
+                });
+            } else {
+                console.log('Invalid code received:', data.code);
+                ws.send(JSON.stringify({ event: 'wrongCode' }));
+            }
+        } catch (err) {
+            console.error('Error processing WebSocket message:', err);
         }
     });
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected. Total clients:', wss.clients.size);
+    });
+    ws.on('error', (err) => {
+        console.error('WebSocket client error:', err);
+    });
+});
+
+wss.on('error', (err) => {
+    console.error('WebSocket server error:', err);
 });
 
 server.listen(process.env.PORT || 8080, () => {

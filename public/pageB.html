@@ -10,9 +10,9 @@
             font-family: Arial, sans-serif; 
             text-align: center; 
         }
-        video { 
-            width: 100%; 
-            height: 100vh; 
+        video, iframe { 
+            width: 100% !important; 
+            height: 100vh !important; 
             object-fit: cover; 
             display: none; 
             border: none; 
@@ -61,10 +61,7 @@
         <source src="https://cdn.glitch.global/67434aaa-b3c4-40b9-acfc-83ec18d4961d/video3.mp4?v=1745801161733" type="video/mp4">
         Your browser does not support the video tag.
     </video>
-    <video id="video4" controls>
-        <source src="https://drive.google.com/uc?export=download&id=1459_WVBwqeo7d2kKJZ0NMrpCr4zhP98k" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
+    <iframe id="video4" src="https://drive.google.com/file/d/1459_WVBwqeo7d2kKJZ0NMrpCr4zhP98k/preview" allow="autoplay" frameborder="0"></iframe>
     <audio id="bmg1" preload="auto">
         <source src="https://cdn.glitch.global/67434aaa-b3c4-40b9-acfc-83ec18d4961d/BMG1.mp3?v=1745801171625" type="audio/mp3">
         Your browser does not support the audio tag.
@@ -93,22 +90,35 @@
         let currentAudioIndex = 0;
 
         Object.values(videos).forEach(media => {
-            media.currentTime = 0;
-            media.onended = () => {
-                console.log('Page B: Video ended:', media.id);
-                media.style.display = 'none';
-                document.getElementById('playVideoBtn').style.display = 'none';
-                if (audioStarted) {
-                    playNextAudio();
-                }
-            };
-            media.onerror = () => {
-                console.error('Page B: Video error:', media.id);
-                errorMessage.textContent = `Failed to load video: ${media.id}`;
-                if (audioStarted) {
-                    playNextAudio();
-                }
-            };
+            if (media.tagName === 'VIDEO') {
+                media.currentTime = 0;
+                media.onended = () => {
+                    console.log('Page B: Video ended:', media.id);
+                    media.style.display = 'none';
+                    document.getElementById('playVideoBtn').style.display = 'none';
+                    if (audioStarted) {
+                        playNextAudio();
+                    }
+                };
+                media.onerror = () => {
+                    console.error('Page B: Video error:', media.id);
+                    errorMessage.textContent = `Failed to load video: ${media.id}`;
+                    if (audioStarted) {
+                        playNextAudio();
+                    }
+                };
+            } else if (media.tagName === 'IFRAME') {
+                media.onload = () => {
+                    console.log('Page B: IFrame loaded:', media.id);
+                };
+                media.onerror = () => {
+                    console.error('Page B: IFrame error:', media.id);
+                    errorMessage.textContent = `Failed to load video: ${media.id}`;
+                    if (audioStarted) {
+                        playNextAudio();
+                    }
+                };
+            }
         });
 
         audios.forEach(audio => {
@@ -149,13 +159,26 @@
                 errorMessage.textContent = '';
                 document.getElementById('playVideoBtn').style.display = 'none';
                 currentVideo.style.display = 'block';
-                currentVideo.play().catch((err) => {
-                    console.error('Page B: Video playback error:', err);
-                    errorMessage.textContent = 'Video playback failed';
-                    if (audioStarted) {
-                        playNextAudio();
+                if (currentVideo.tagName === 'VIDEO') {
+                    currentVideo.play().catch((err) => {
+                        console.error('Page B: Video playback error:', err);
+                        errorMessage.textContent = 'Video playback failed';
+                        if (audioStarted) {
+                            playNextAudio();
+                        }
+                    });
+                } else if (currentVideo.tagName === 'IFRAME') {
+                    try {
+                        console.log('Page B: Attempting to play Google Drive IFrame');
+                        currentVideo.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                    } catch (err) {
+                        console.error('Page B: IFrame playback error:', err);
+                        errorMessage.textContent = 'Google Drive video playback failed';
+                        if (audioStarted) {
+                            playNextAudio();
+                        }
                     }
-                });
+                }
             } else {
                 console.error('Page B: No current video to play');
                 errorMessage.textContent = 'No video selected';
@@ -180,8 +203,10 @@
                     });
                     Object.values(videos).forEach(media => {
                         media.style.display = 'none';
-                        media.pause();
-                        media.currentTime = 0;
+                        if (media.tagName === 'VIDEO') {
+                            media.pause();
+                            media.currentTime = 0;
+                        }
                     });
                     const media = videos[data.video];
                     if (media) {
@@ -222,6 +247,18 @@
             console.log('Page B: WebSocket connection closed');
             errorMessage.textContent = 'Disconnected from server';
         };
+
+        // Detect IFrame playback end (approximate, as Google Drive doesn't provide direct events)
+        window.addEventListener('message', (event) => {
+            if (event.origin.includes('drive.google.com') && event.data.includes('ended')) {
+                console.log('Page B: Google Drive video ended');
+                document.getElementById('video4').style.display = 'none';
+                document.getElementById('playVideoBtn').style.display = 'none';
+                if (audioStarted) {
+                    playNextAudio();
+                }
+            }
+        });
     </script>
 </body>
 </html>

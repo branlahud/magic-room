@@ -10,7 +10,7 @@
             font-family: Arial, sans-serif; 
             text-align: center; 
         }
-        video, #youtube-player, #youtube-player iframe { 
+        video { 
             width: 100%; 
             height: 100vh; 
             object-fit: cover; 
@@ -61,7 +61,10 @@
         <source src="https://cdn.glitch.global/67434aaa-b3c4-40b9-acfc-83ec18d4961d/video3.mp4?v=1745801161733" type="video/mp4">
         Your browser does not support the video tag.
     </video>
-    <div id="youtube-player"></div>
+    <video id="video4" controls>
+        <source src="https://drive.google.com/uc?export=download&id=1459_WVBwqeo7d2kKJZ0NMrpCr4zhP98k" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
     <audio id="bmg1" preload="auto">
         <source src="https://cdn.glitch.global/67434aaa-b3c4-40b9-acfc-83ec18d4961d/BMG1.mp3?v=1745801171625" type="audio/mp3">
         Your browser does not support the audio tag.
@@ -71,68 +74,17 @@
         Your browser does not support the audio tag.
     </audio>
 
-    <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        let youtubePlayer = null;
-        let youtubeReady = false;
         let audioStarted = false;
         let currentVideo = null;
         const errorMessage = document.getElementById('errorMessage');
-
-        function onYouTubeIframeAPIReady() {
-            console.log('Page B: YouTube IFrame API loaded');
-            try {
-                youtubePlayer = new YT.Player('youtube-player', {
-                    height: '100%',
-                    width: '100%',
-                    videoId: '2wW5CpQDSfU',
-                    playerVars: {
-                        'controls': 1,
-                        'showinfo': 0,
-                        'rel': 0
-                    },
-                    events: {
-                        'onReady': (event) => {
-                            console.log('Page B: YouTube player ready');
-                            youtubeReady = true;
-                            errorMessage.textContent = '';
-                            // Ensure IFrame is visible
-                            const iframe = document.querySelector('#youtube-player iframe');
-                            if (iframe) {
-                                console.log('Page B: YouTube IFrame found, setting display');
-                                iframe.style.display = 'block';
-                            }
-                        },
-                        'onStateChange': onPlayerStateChange,
-                        'onError': (event) => {
-                            console.error('Page B: YouTube error:', event.data);
-                            errorMessage.textContent = `YouTube error: ${event.data}`;
-                        }
-                    }
-                });
-            } catch (err) {
-                console.error('Page B: Error initializing YouTube player:', err);
-                errorMessage.textContent = 'Failed to initialize YouTube player';
-            }
-        }
-
-        function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) {
-                console.log('Page B: YouTube video ended');
-                document.getElementById('youtube-player').style.display = 'none';
-                document.getElementById('playVideoBtn').style.display = 'none';
-                if (audioStarted) {
-                    playNextAudio();
-                }
-            }
-        }
 
         const ws = new WebSocket('wss://' + window.location.host);
         const videos = {
             'video1': document.getElementById('video1'),
             'video2': document.getElementById('video2'),
             'video3': document.getElementById('video3'),
-            'video4': document.getElementById('youtube-player')
+            'video4': document.getElementById('video4')
         };
         const audios = [
             document.getElementById('bmg1'),
@@ -141,21 +93,22 @@
         let currentAudioIndex = 0;
 
         Object.values(videos).forEach(media => {
-            if (media.tagName === 'VIDEO') {
-                media.currentTime = 0;
-                media.onended = () => {
-                    console.log('Page B: Video ended:', media.id);
-                    media.style.display = 'none';
-                    document.getElementById('playVideoBtn').style.display = 'none';
-                    if (audioStarted) {
-                        playNextAudio();
-                    }
-                };
-                media.onerror = () => {
-                    console.error('Page B: Video error:', media.id);
-                    errorMessage.textContent = `Failed to load video: ${media.id}`;
-                };
-            }
+            media.currentTime = 0;
+            media.onended = () => {
+                console.log('Page B: Video ended:', media.id);
+                media.style.display = 'none';
+                document.getElementById('playVideoBtn').style.display = 'none';
+                if (audioStarted) {
+                    playNextAudio();
+                }
+            };
+            media.onerror = () => {
+                console.error('Page B: Video error:', media.id);
+                errorMessage.textContent = `Failed to load video: ${media.id}`;
+                if (audioStarted) {
+                    playNextAudio();
+                }
+            };
         });
 
         audios.forEach(audio => {
@@ -195,28 +148,14 @@
                 console.log('Page B: Playing video:', currentVideo.id);
                 errorMessage.textContent = '';
                 document.getElementById('playVideoBtn').style.display = 'none';
-                if (currentVideo.tagName === 'VIDEO') {
-                    currentVideo.play().catch((err) => {
-                        console.error('Page B: Video playback error:', err);
-                        errorMessage.textContent = 'Video playback failed';
-                    });
-                } else {
-                    if (youtubeReady && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-                        console.log('Page B: Playing YouTube video');
-                        currentVideo.style.display = 'block';
-                        const iframe = document.querySelector('#youtube-player iframe');
-                        if (iframe) {
-                            iframe.style.display = 'block';
-                            iframe.style.width = '100%';
-                            iframe.style.height = '100vh';
-                        }
-                        youtubePlayer.playVideo();
-                    } else {
-                        console.error('Page B: YouTube player not ready');
-                        errorMessage.textContent = 'YouTube player not ready. Try again.';
-                        document.getElementById('playVideoBtn').style.display = 'block';
+                currentVideo.style.display = 'block';
+                currentVideo.play().catch((err) => {
+                    console.error('Page B: Video playback error:', err);
+                    errorMessage.textContent = 'Video playback failed';
+                    if (audioStarted) {
+                        playNextAudio();
                     }
-                }
+                });
             } else {
                 console.error('Page B: No current video to play');
                 errorMessage.textContent = 'No video selected';
@@ -241,10 +180,8 @@
                     });
                     Object.values(videos).forEach(media => {
                         media.style.display = 'none';
-                        if (media.tagName === 'VIDEO') {
-                            media.pause();
-                            media.currentTime = 0;
-                        }
+                        media.pause();
+                        media.currentTime = 0;
                     });
                     const media = videos[data.video];
                     if (media) {

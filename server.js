@@ -9,24 +9,46 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Serve static files from 'public' folder
 const publicPath = path.join(__dirname, 'public');
 console.log('Serving static files from:', publicPath);
-fs.readdir(publicPath, (err, files) => {
-    if (err) {
-        console.log('Error reading public directory:', err);
-    } else {
-        console.log('Files in public/:', files);
-    }
-});
-app.use(express.static(publicPath));
 
+// Check if public directory exists
+if (!fs.existsSync(publicPath)) {
+    console.log('Public directory does not exist:', publicPath);
+} else {
+    fs.readdir(publicPath, (err, files) => {
+        if (err) {
+            console.log('Error reading public directory:', err);
+        } else {
+            console.log('Files in public/:', files);
+        }
+    });
+}
+
+// Serve static files
+app.use('/public', express.static(publicPath, {
+    extensions: ['html'],
+    index: false
+}));
+
+// Debug route
 app.get('/', (req, res) => {
     console.log('Root route accessed');
     res.send('Server is running!');
 });
 
+// Debug file requests
 app.get('/public/:file', (req, res, next) => {
     console.log('Request for file:', req.params.file);
+    const filePath = path.join(publicPath, req.params.file);
+    fs.access(filePath, fs.constants.F_OK, (err) => {
+        if (err) {
+            console.log('File not found:', filePath);
+        } else {
+            console.log('File exists:', filePath);
+        }
+    });
     next();
 });
 

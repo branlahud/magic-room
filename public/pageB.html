@@ -78,7 +78,7 @@
         const errorMessage = document.getElementById('errorMessage');
 
         function onYouTubeIframeAPIReady() {
-            console.log('YouTube IFrame API loaded');
+            console.log('Page B: YouTube IFrame API loaded');
             youtubePlayer = new YT.Player('youtube-player', {
                 height: '100%',
                 width: '100%',
@@ -91,7 +91,7 @@
                 events: {
                     'onStateChange': onPlayerStateChange,
                     'onError': (event) => {
-                        console.error('YouTube error:', event.data);
+                        console.error('Page B: YouTube error:', event.data);
                         errorMessage.textContent = 'YouTube video failed to load';
                     }
                 }
@@ -100,7 +100,7 @@
 
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.ENDED) {
-                console.log('YouTube video ended');
+                console.log('Page B: YouTube video ended');
                 document.getElementById('youtube-player').style.display = 'none';
                 document.getElementById('playVideoBtn').style.display = 'none';
                 if (audioStarted) {
@@ -122,12 +122,11 @@
         ];
         let currentAudioIndex = 0;
 
-        // Setup videos
         Object.values(videos).forEach(media => {
             if (media.tagName === 'VIDEO') {
                 media.currentTime = 0;
                 media.onended = () => {
-                    console.log('Video ended:', media.id);
+                    console.log('Page B: Video ended:', media.id);
                     media.style.display = 'none';
                     document.getElementById('playVideoBtn').style.display = 'none';
                     if (audioStarted) {
@@ -135,23 +134,22 @@
                     }
                 };
                 media.onerror = () => {
-                    console.error('Video error:', media.id);
+                    console.error('Page B: Video error:', media.id);
                     errorMessage.textContent = `Failed to load video: ${media.id}`;
                 };
             }
         });
 
-        // Setup audio
         audios.forEach(audio => {
             audio.onerror = () => {
-                console.error('Audio error:', audio.id);
+                console.error('Page B: Audio error:', audio.id);
                 errorMessage.textContent = `Failed to load audio: ${audio.id}`;
                 document.getElementById('playAudioBtn').style.display = 'block';
             };
         });
 
         function startAudio() {
-            console.log('Starting audio');
+            console.log('Page B: Starting audio');
             audioStarted = true;
             document.getElementById('playAudioBtn').style.display = 'none';
             errorMessage.textContent = '';
@@ -159,12 +157,12 @@
         }
 
         function playNextAudio() {
-            console.log('Playing next audio:', audios[currentAudioIndex].id);
+            console.log('Page B: Playing next audio:', audios[currentAudioIndex].id);
             audios.forEach(audio => audio.pause());
             const currentAudio = audios[currentAudioIndex];
             currentAudio.currentTime = 0;
             currentAudio.play().catch((err) => {
-                console.error('Audio playback error:', err);
+                console.error('Page B: Audio playback error:', err);
                 errorMessage.textContent = 'Click Play Audio to start music';
                 document.getElementById('playAudioBtn').style.display = 'block';
             });
@@ -176,51 +174,84 @@
 
         function playCurrentVideo() {
             if (currentVideo) {
-                console.log('Playing video:', currentVideo.id);
+                console.log('Page B: Playing video:', currentVideo.id);
                 errorMessage.textContent = '';
                 document.getElementById('playVideoBtn').style.display = 'none';
                 if (currentVideo.tagName === 'VIDEO') {
                     currentVideo.play().catch((err) => {
-                        console.error('Video playback error:', err);
+                        console.error('Page B: Video playback error:', err);
                         errorMessage.textContent = 'Video playback failed';
                     });
                 } else {
                     youtubePlayer.playVideo();
                 }
+            } else {
+                console.error('Page B: No current video to play');
+                errorMessage.textContent = 'No video selected';
             }
         }
 
-        ws.onopen = () => console.log('Connected to WebSocket server');
+        ws.onopen = () => {
+            console.log('Page B: Connected to WebSocket server');
+            errorMessage.textContent = 'Connected to server';
+        };
 
         ws.onmessage = (event) => {
-            console.log('WebSocket message received:', event.data);
-            const data = JSON.parse(event.data);
-            if (data.event === 'playVideo') {
-                audios.forEach(audio => audio.pause());
-                Object.values(videos).forEach(media => {
-                    media.style.display = 'none';
-                    if (media.tagName === 'VIDEO') {
-                        media.pause();
-                        media.currentTime = 0;
+            console.log('Page B: WebSocket message received:', event.data);
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Page B: Parsed WebSocket data:', data);
+                if (data.event === 'playVideo' && data.video) {
+                    console.log('Page B: Attempting to play video:', data.video);
+                    audios.forEach(audio => {
+                        console.log('Page B: Pausing audio:', audio.id);
+                        audio.pause();
+                    });
+                    Object.values(videos).forEach(media => {
+                        media.style.display = 'none';
+                        if (media.tagName === 'VIDEO') {
+                            media.pause();
+                            media.currentTime = 0;
+                        }
+                    });
+                    const media = videos[data.video];
+                    if (media) {
+                        console.log('Page B: Video found, triggering:', data.video);
+                        media.style.display = 'block';
+                        currentVideo = media;
+                        document.getElementById('playVideoBtn').style.display = 'block';
+                        errorMessage.textContent = 'Click Play Video to start';
+                    } else {
+                        console.error('Page B: Invalid video ID:', data.video);
+                        errorMessage.textContent = 'Invalid video triggered';
+                        if (audioStarted) {
+                            playNextAudio();
+                        }
                     }
-                });
-                const media = videos[data.video];
-                if (media) {
-                    console.log('Triggering video:', data.video);
-                    media.style.display = 'block';
-                    currentVideo = media;
-                    document.getElementById('playVideoBtn').style.display = 'block';
-                    errorMessage.textContent = 'Click Play Video to start';
                 } else {
-                    console.error('Invalid video ID:', data.video);
-                    errorMessage.textContent = 'Invalid video triggered';
+                    console.warn('Page B: Invalid or missing WebSocket event/video:', data);
+                    errorMessage.textContent = 'Invalid video trigger received';
+                    if (audioStarted) {
+                        playNextAudio();
+                    }
+                }
+            } catch (err) {
+                console.error('Page B: Error parsing WebSocket message:', err);
+                errorMessage.textContent = 'Error processing video trigger';
+                if (audioStarted) {
+                    playNextAudio();
                 }
             }
         };
 
         ws.onerror = (err) => {
-            console.error('WebSocket error:', err);
+            console.error('Page B: WebSocket error:', err);
             errorMessage.textContent = 'WebSocket connection failed';
+        };
+
+        ws.onclose = () => {
+            console.log('Page B: WebSocket connection closed');
+            errorMessage.textContent = 'Disconnected from server';
         };
     </script>
 </body>

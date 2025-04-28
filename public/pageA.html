@@ -1,75 +1,134 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Keypad</title>
-  <style>
-    body { font-family: Arial; text-align: center; margin-top: 50px; }
-    .keypad button { width: 60px; height: 60px; font-size: 24px; margin: 5px; }
-    #message { margin-top: 20px; font-size: 24px; }
-  </style>
+    <title>Magic Keypad</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background: #f0f0f0; 
+        }
+        #codeDisplay { 
+            font-size: 24px; 
+            padding: 10px; 
+            margin-bottom: 20px; 
+            border: 2px solid #333; 
+            background: white; 
+            width: 200px; 
+            margin-left: auto; 
+            margin-right: auto; 
+        }
+        .keypad { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; 
+            max-width: 300px; 
+            margin: 0 auto; 
+        }
+        button { 
+            padding: 20px; 
+            font-size: 18px; 
+            background: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        button:hover { background: #45a049; }
+        #clearBtn { 
+            background: #f44336; 
+            font-weight: bold; 
+        }
+        #clearBtn:hover { background: #da190b; }
+        #submitBtn { 
+            background: #2196F3; 
+            grid-column: span 3; 
+            margin-top: 10px; 
+        }
+        #submitBtn:hover { background: #0b7dda; }
+        #message { 
+            margin-top: 20px; 
+            font-size: 16px; 
+            color: #333; 
+        }
+    </style>
 </head>
 <body>
+    <h2>Enter the Magic Code</h2>
+    <div id="codeDisplay"></div>
+    <div class="keypad">
+        <button onclick="addDigit('1')">1</button>
+        <button onclick="addDigit('2')">2</button>
+        <button onclick="addDigit('3')">3</button>
+        <button onclick="addDigit('4')">4</button>
+        <button onclick="addDigit('5')">5</button>
+        <button onclick="addDigit('6')">6</button>
+        <button onclick="addDigit('7')">7</button>
+        <button onclick="addDigit('8')">8</button>
+        <button onclick="addDigit('9')">9</button>
+        <button onclick="addDigit('0')">0</button>
+        <button id="clearBtn" onclick="clearCode()">CLEAR</button>
+        <button id="submitBtn" onclick="sendCode()">SUBMIT</button>
+    </div>
+    <p id="message"></p>
 
-<h1>Enter Code</h1>
-<div id="inputDisplay" style="font-size: 32px; margin-bottom: 20px;">_</div>
+    <script>
+        const ws = new WebSocket('wss://' + window.location.host);
+        let code = '';
 
-<div class="keypad">
-  <!-- Numbers -->
-  <div>
-    <button onclick="addNumber('1')">1</button>
-    <button onclick="addNumber('2')">2</button>
-    <button onclick="addNumber('3')">3</button>
-  </div>
-  <div>
-    <button onclick="addNumber('4')">4</button>
-    <button onclick="addNumber('5')">5</button>
-    <button onclick="addNumber('6')">6</button>
-  </div>
-  <div>
-    <button onclick="addNumber('7')">7</button>
-    <button onclick="addNumber('8')">8</button>
-    <button onclick="addNumber('9')">9</button>
-  </div>
-  <div>
-    <button onclick="clearInput()">Clear</button>
-    <button onclick="addNumber('0')">0</button>
-    <button onclick="submitCode()">Submit</button>
-  </div>
-</div>
+        ws.onopen = () => {
+            console.log('Page A: Connected to WebSocket server');
+            document.getElementById('message').textContent = 'Connected to server';
+        };
 
-<div id="message"></div>
+        ws.onmessage = (event) => {
+            console.log('Page A: WebSocket message received:', event.data);
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === 'wrongCode') {
+                    document.getElementById('message').textContent = 'Try again!';
+                }
+            } catch (err) {
+                console.error('Page A: Error parsing WebSocket message:', err);
+            }
+        };
 
-<script>
-  let input = "";
+        ws.onerror = (err) => {
+            console.error('Page A: WebSocket error:', err);
+            document.getElementById('message').textContent = 'Connection error';
+        };
 
-  const socket = new WebSocket(`wss://${location.host}`);
+        ws.onclose = () => {
+            console.log('Page A: WebSocket connection closed');
+            document.getElementById('message').textContent = 'Disconnected from server';
+        };
 
-  function addNumber(num) {
-    input += num;
-    document.getElementById('inputDisplay').innerText = input;
-  }
+        function addDigit(digit) {
+            code += digit;
+            document.getElementById('codeDisplay').textContent = code;
+            document.getElementById('message').textContent = '';
+        }
 
-  function clearInput() {
-    input = "";
-    document.getElementById('inputDisplay').innerText = "_";
-    document.getElementById('message').innerText = "";
-  }
+        function clearCode() {
+            code = '';
+            document.getElementById('codeDisplay').textContent = '';
+            document.getElementById('message').textContent = '';
+        }
 
-  function submitCode() {
-    if (input === "") {
-      document.getElementById('message').innerText = "Enter a code first!";
-      return;
-    }
-    const codes = ["5920", "1346799352", "288", "15100"];
-    if (codes.includes(input)) {
-      document.getElementById('message').innerText = "Look at the TV!";
-      socket.send(input); // send code to server
-    } else {
-      document.getElementById('message').innerText = "Try again!";
-    }
-  }
-</script>
-
+        function sendCode() {
+            if (code) {
+                const message = JSON.stringify({ code: code });
+                console.log('Page A: Sending code:', message);
+                ws.send(message);
+                document.getElementById('message').textContent = 'Look at the TV!';
+                code = '';
+                document.getElementById('codeDisplay').textContent = '';
+            } else {
+                document.getElementById('message').textContent = 'Enter a code first!';
+            }
+        }
+    </script>
 </body>
 </html>

@@ -10,7 +10,7 @@
             font-family: Arial, sans-serif; 
             text-align: center; 
         }
-        video, iframe { 
+        video, #youtube-player, #youtube-player iframe { 
             width: 100%; 
             height: 100vh; 
             object-fit: cover; 
@@ -19,6 +19,7 @@
             position: absolute; 
             top: 0; 
             left: 0; 
+            z-index: 100; 
         }
         #playAudioBtn, #playVideoBtn { 
             position: fixed; 
@@ -72,30 +73,47 @@
 
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        let youtubePlayer;
+        let youtubePlayer = null;
+        let youtubeReady = false;
         let audioStarted = false;
         let currentVideo = null;
         const errorMessage = document.getElementById('errorMessage');
 
         function onYouTubeIframeAPIReady() {
             console.log('Page B: YouTube IFrame API loaded');
-            youtubePlayer = new YT.Player('youtube-player', {
-                height: '100%',
-                width: '100%',
-                videoId: '2wW5CpQDSfU',
-                playerVars: {
-                    'controls': 1,
-                    'showinfo': 0,
-                    'rel': 0
-                },
-                events: {
-                    'onStateChange': onPlayerStateChange,
-                    'onError': (event) => {
-                        console.error('Page B: YouTube error:', event.data);
-                        errorMessage.textContent = 'YouTube video failed to load';
+            try {
+                youtubePlayer = new YT.Player('youtube-player', {
+                    height: '100%',
+                    width: '100%',
+                    videoId: '2wW5CpQDSfU',
+                    playerVars: {
+                        'controls': 1,
+                        'showinfo': 0,
+                        'rel': 0
+                    },
+                    events: {
+                        'onReady': (event) => {
+                            console.log('Page B: YouTube player ready');
+                            youtubeReady = true;
+                            errorMessage.textContent = '';
+                            // Ensure IFrame is visible
+                            const iframe = document.querySelector('#youtube-player iframe');
+                            if (iframe) {
+                                console.log('Page B: YouTube IFrame found, setting display');
+                                iframe.style.display = 'block';
+                            }
+                        },
+                        'onStateChange': onPlayerStateChange,
+                        'onError': (event) => {
+                            console.error('Page B: YouTube error:', event.data);
+                            errorMessage.textContent = `YouTube error: ${event.data}`;
+                        }
                     }
-                }
-            });
+                });
+            } catch (err) {
+                console.error('Page B: Error initializing YouTube player:', err);
+                errorMessage.textContent = 'Failed to initialize YouTube player';
+            }
         }
 
         function onPlayerStateChange(event) {
@@ -183,7 +201,21 @@
                         errorMessage.textContent = 'Video playback failed';
                     });
                 } else {
-                    youtubePlayer.playVideo();
+                    if (youtubeReady && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+                        console.log('Page B: Playing YouTube video');
+                        currentVideo.style.display = 'block';
+                        const iframe = document.querySelector('#youtube-player iframe');
+                        if (iframe) {
+                            iframe.style.display = 'block';
+                            iframe.style.width = '100%';
+                            iframe.style.height = '100vh';
+                        }
+                        youtubePlayer.playVideo();
+                    } else {
+                        console.error('Page B: YouTube player not ready');
+                        errorMessage.textContent = 'YouTube player not ready. Try again.';
+                        document.getElementById('playVideoBtn').style.display = 'block';
+                    }
                 }
             } else {
                 console.error('Page B: No current video to play');
